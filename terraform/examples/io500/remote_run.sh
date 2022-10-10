@@ -20,6 +20,7 @@ RUN_SCRIPT="run_io500-isc22.sh"
 N_TIMES=1
 DURATION_IN_SECONDS=60
 DAOS_CONT_PROPS="rf:0"
+IO500_INI="io500-isc22.config-template.daos-rf0.ini"
 
 
 show_help() {
@@ -35,6 +36,7 @@ Options:
   [ -n --numberoftimes   N_TIMES ]	Number of times to repeat IO500 benchmark
   [ -p --properties  DAOS_CONT_PROPS ]  Comma-seperated list of DAOS container properties(property:value), such as erasure coding and checksum configuration
           For full DAOS property list, visit https://docs.daos.io/v2.0/user/container/#property-values
+  [ -i --ini IO500_INI ]  io500 ini file name
   [ -h --help ]                   Show help
 
 Examples:
@@ -44,7 +46,7 @@ Examples:
 
   Deploys DAOS and runs IO500 for 5 minutes and repeat 6 more times, with Redundancy Factor set to 1, checksum enabled with CRC64, and server verify enabled
 
-    ${SCRIPT_NAME} -s 300  -n 7  -p rf:1,cksum:crc64,srv_cksum:true
+    ${SCRIPT_NAME} -s 300  -n 7  -p rf:1,cksum:crc64,srv_cksum:true -i io500-isc22.config-template.daos-rf1.ini
 
 EOF
 }
@@ -120,6 +122,15 @@ opts() {
         export DAOS_CONT_PROPS
         shift 2
       ;;
+      --ini|-i)
+        IO500_INI="$2"
+        if [[ "${IO500_INI}" == -* ]] || [[ "${IO500_INI}" == "" ]] || [[ -z ${IO500_INI} ]]; then
+          ERROR_MSGS+=("ERROR: Missing IO500_INI value for -i or --ini")
+          break
+        fi
+        export IO500_INI
+        shift 2
+      ;;
       --help|-h)
         show_help
         exit 0
@@ -150,7 +161,7 @@ main() {
     log "Working folder created: ${RESULTS_DIR}"
 
     # generate config.sh file
-    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/"  -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  ${CONFIG_FILE}
+    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${io500_ini}/${IO500_INI}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  ${CONFIG_FILE}
     log "Config file generated: ${CONFIG_FILE}"
 
     # deploy DAOS cluster and client
