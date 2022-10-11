@@ -55,9 +55,9 @@ IO500_STONEWALL_TIME=${duration_in_seconds}  # Number of seconds to run the benc
 # ------------------------------------------------------------------------------
 # Modify instance base names if ID variable is set
 # ------------------------------------------------------------------------------
-DAOS_CONFIG_NAME="${DAOS_CLIENT_INSTANCE_COUNT}c-${DAOS_SERVER_INSTANCE_COUNT}s"
-DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME:-daos-server-${DAOS_CONFIG_NAME}}"
-DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME:-daos-client-${DAOS_CONFIG_NAME}}"
+DAOS_CONFIG_NAME="${DAOS_CLIENT_INSTANCE_COUNT}c${DAOS_SERVER_INSTANCE_COUNT}s"
+DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME:-daossrv-${DAOS_CONFIG_NAME}}"
+DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME:-daosclnt-${DAOS_CONFIG_NAME}}"
 if [[ -n ${ID} ]]; then
     DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME}-${ID}"
     DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME}-${ID}"
@@ -71,8 +71,8 @@ export TF_VAR_project_id="$(gcloud info --format="value(config.project)")"
 export TF_VAR_network="default"
 export TF_VAR_subnetwork="default"
 export TF_VAR_subnetwork_project="${TF_VAR_project_id}"
-export TF_VAR_region="us-central1"
-export TF_VAR_zone="us-central1-f"
+export TF_VAR_region="$(gcloud config get compute/region)"
+export TF_VAR_zone="$(gcloud config get compute/zone)"
 export TF_VAR_allow_insecure="${DAOS_ALLOW_INSECURE}"
 # Servers
 export TF_VAR_server_preemptible=${PREEMPTIBLE_INSTANCES}
