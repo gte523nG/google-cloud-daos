@@ -8,7 +8,7 @@ SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 
-PERF_SESSION_ID="perf-$USER-$(date +'%Y%m%d-%H%M%S')"
+PERF_SESSION_ID="$USER$(date +'%Y%m%d-%H%M')"
 RESULTS_DIR="${SCRIPT_DIR}/results/${PERF_SESSION_ID}"
 CONFIG_FILE="${SCRIPT_DIR}/results/${PERF_SESSION_ID}/config.sh"
 CONFIG_TEMPLATE_FILE="${SCRIPT_DIR}/remote_run.config.template"
@@ -191,7 +191,7 @@ main() {
     done
 
     # cleanup DAOS cluster and client
-    source ${SCRIPT_DIR}/stop.sh 
+    source ${SCRIPT_dir}/stop.sh
 }
 
 main "$@"

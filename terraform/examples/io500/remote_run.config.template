@@ -24,7 +24,7 @@
 # This should be set to a constant value and not the value of an
 # environment variable such as '${USER}' which changes depending on where this
 # file gets sourced.
-ID="${perf_session_id}"
+PERF_ID="${perf_session_id}"
 
 # Server and client instances
 PREEMPTIBLE_INSTANCES="true"
@@ -53,14 +53,14 @@ IO500_INI=${io500_ini}
 IO500_STONEWALL_TIME=${duration_in_seconds}  # Number of seconds to run the benchmark
 
 # ------------------------------------------------------------------------------
-# Modify instance base names if ID variable is set
+# Modify instance base names if PERF_ID variable is set
 # ------------------------------------------------------------------------------
 DAOS_CONFIG_NAME="${DAOS_CLIENT_INSTANCE_COUNT}c${DAOS_SERVER_INSTANCE_COUNT}s"
-DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME:-daossrv-${DAOS_CONFIG_NAME}}"
-DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME:-daosclnt-${DAOS_CONFIG_NAME}}"
-if [[ -n ${ID} ]]; then
-    DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME}-${ID}"
-    DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME}-${ID}"
+DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME:-dsrv-${DAOS_CONFIG_NAME}}"
+DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME:-dclnt-${DAOS_CONFIG_NAME}}"
+if [[ -n ${PERF_ID} ]]; then
+    DAOS_SERVER_BASE_NAME="${DAOS_SERVER_BASE_NAME}-${PERF_ID}"
+    DAOS_CLIENT_BASE_NAME="${DAOS_CLIENT_BASE_NAME}-${PERF_ID}"
 fi
 
 # ------------------------------------------------------------------------------
