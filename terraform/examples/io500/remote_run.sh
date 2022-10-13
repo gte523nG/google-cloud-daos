@@ -3,6 +3,8 @@
 set -e
 trap 'echo "Hit an unexpected and unchecked error. Exiting."' ERR
 
+DAOS_CONTROLLER_VM_NAME="daos-controller"
+DAOS_PROJECT_NAME="cloud-daos-perf-testing"
 
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
@@ -152,31 +154,53 @@ opts() {
   show_errors
 }
 
+check_connection_to_daos_controller() {
+   ssh -q $USER@$DAOS_CONTROLLER_VM_NAME exit
+   if [ $? -eq 0 ]
+   then
+      log "SSH connectivity to ${DAOS_CONTROLLER_VM_NAME} :  OK " 
+      return 0
+   fi
 
-main() {
-    opts "$@"
+   log "Setting up SSH to ${DAOS_CONTROLLER_VM_NAME}"
 
-    # setup working subfolder under results folder
-    mkdir -p $RESULTS_DIR
+   gcp_ssh_setup $DAOS_CONTROLLER_VM_NAME --project $DAOS_PROJECT_NAME
+
+   ssh -q $USER@$DAOS_CONTROLLER_VM_NAME exit
+   if [ $? -ne 0 ]
+   then
+      log_error "Can't SSH connect to ${DAOS_CONTROLLER_VM_NAME}!"
+      exit 1
+   fi
+
+   log "SSH connectivity to ${DAOS_CONTROLLER_VM_NAME} :  OK "
+}
+
+setup_working_folders() {
+    # setup working subfolder under results folder    mkdir -p $RESULTS_DIR
     log "Working folder created: ${RESULTS_DIR}"
 
+    ssh 
+}
+
+sync_to_daos_controller() {
+
+}
+
+generate_config() {
     # generate config.sh file
     sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${io500_ini}/${IO500_INI}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  ${CONFIG_FILE}
     log "Config file generated: ${CONFIG_FILE}"
+}
 
+deploy_daos_cluster_n_clients() {
     # deploy DAOS cluster and client
     source ${SCRIPT_DIR}/start.sh -i -c ${CONFIG_FILE}
     log "Successfully deployed DAOS cluster and client with config file: ${CONFIG_FILE}."
+}
 
-    SSH_CONFIG_FILE="${SCRIPT_DIR}/tmp/ssh_config"
-    FIRST_CLIENT_IP=$(cat ${SSH_CONFIG_FILE} | awk '{print $2}' | grep 10)
-
-    # repeat io500 and result collection for specified number of times
-    for (( n=0; n<${N_TIMES};n++))
-    do
-      log "Iteration $n"
-
-      ITERATION_N_DIR="${RESULTS_DIR}/iteration${n}"
+run_n_collect_io500() {
+      ITERATION_N_DIR="${RESULTS_DIR}/iteration$1"
       mkdir $ITERATION_N_DIR
 
       # run io500
@@ -187,11 +211,38 @@ main() {
 
       # reset the results folder in the first DAOS client
       ssh -F "${SSH_CONFIG_FILE}" "${FIRST_CLIENT_IP}" "rm -rf ~/io500-isc22/results/"
+}
+
+
+
+main() {
+    opts "$@"
+
+    check_connection_to_daos_controller
+
+#    sync_to_daos_controller
+
+#    setup_working_folders
+
+#   generate_config
+
+#    deploy_daos_cluster_n_clients
+
+
+    SSH_CONFIG_FILE="${SCRIPT_DIR}/tmp/ssh_config"
+    FIRST_CLIENT_IP=$(cat ${SSH_CONFIG_FILE} | awk '{print $2}' | grep 10)
+
+    # repeat io500 and result collection for specified number of times
+    for (( n=0; n<${N_TIMES};n++))
+    do
+      log "Iteration $n"
+
+#      run_n_collect_io500 $n
 
     done
 
     # cleanup DAOS cluster and client
-    source ${SCRIPT_dir}/stop.sh
+#   source ${SCRIPT_dir}/stop.sh
 }
 
 main "$@"
