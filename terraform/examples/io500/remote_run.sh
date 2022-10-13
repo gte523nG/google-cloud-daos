@@ -9,20 +9,41 @@ DAOS_PROJECT_NAME="cloud-daos-perf-testing"
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
+GOOGLE_CLOUD_DAOS_ROOT_PATH="$( builtin cd $SCRIPT_DIR/../../..; pwd )"
 
 PERF_SESSION_ID="$USER$(date +'%Y%m%d-%H%M')"
-RESULTS_DIR="${SCRIPT_DIR}/results/${PERF_SESSION_ID}"
-CONFIG_FILE="${SCRIPT_DIR}/results/${PERF_SESSION_ID}/config.sh"
+
+
+CONFIG_FILE="${RESULTS_SESSION_DIR}/config.sh"
 CONFIG_TEMPLATE_FILE="${SCRIPT_DIR}/remote_run.config.template"
 
 SSH_USER="daos-user"
 RUN_SCRIPT="run_io500-isc22.sh"
+
+
+RESULTS_DIR="$( builtin cd $GOOGLE_CLOUD_DAOS_ROOT_PATH/../daosresults; pwd )"
+RESULTS_SESSION_DIR="${RESULTS_DIR}/${PERF_SESSION_ID}"
+
+
 
 # default parameter values
 N_TIMES=1
 DURATION_IN_SECONDS=60
 DAOS_CONT_PROPS="rf:0"
 IO500_INI="io500-isc22.config-template.daos-rf0.ini"
+
+# IMPORTANT!  make sure RESULT_LOCAL_BASE is located outside GCP_DAOS_REPO_LOCAL_BASE.
+#  This is to prevent accidental result data loss by rsync operations between local host and daos-controller vm.
+RESULT_LOCAL_BASE="${SCRIPT_DIR}/daos-results-sync"
+GCP_DAOS_REPO_LOCAL_BASE="${SCRIPT_DIR}/gcp-daos"
+
+RESULT_REMOTE_BASE="~/daos-results"
+RESULT_REMOTE_DIR="${RESULT_REMOTE_BASE}/${PERF_SESSION_ID}"
+CONFIG_REMOTE="${RESULT_REMOTE_DIR}/config.sh"
+
+GCP_DAOS_REPO_REMOTE_BASE="~/gcp-daos-sync"
+
+
 
 
 show_help() {
@@ -154,6 +175,7 @@ opts() {
   show_errors
 }
 
+
 check_connection_to_daos_controller() {
    ssh -q $USER@$DAOS_CONTROLLER_VM_NAME exit
    if [ $? -eq 0 ]
@@ -176,31 +198,54 @@ check_connection_to_daos_controller() {
    log "SSH connectivity to ${DAOS_CONTROLLER_VM_NAME} :  OK "
 }
 
-setup_working_folders() {
-    # setup working subfolder under results folder    mkdir -p $RESULTS_DIR
-    log "Working folder created: ${RESULTS_DIR}"
-
-    ssh 
+execute_on_daosctrl() {
+   ssh $DAOS_CONTROLLER_VM_NAME "$1"
 }
 
 sync_to_daos_controller() {
+   log "Sync gcp daos repo to daos-controller vm"
+   rsync -av --delete $GCP_DAOS_REPO_LOCAL_BASE/ $USER@$DAOS_CONTROLLER_VM_NAME:$GCP_DAOS_REPO_REMOTE_BASE
+}
 
+sync_result_from_daos_controller() {
+   log "Sync result folder from daos-controller vm"
+   rsync -av  $USER@$DAOS_CONTROLLER_VM_NAME:$RESULT_REMOTE_BASE/  $RESULT_LOCAL_BASE
+}
+
+setup_result_folder() {
+   # setup working/result folder in daos-controller vm
+   execute_on_daosctrl "mkdir -p ${RESULT_REMOTE_DIR}"
+
+   log "Working folder on daos-controller created: ${RESULT_REMOTE_DIR}"
+
+   # sync new result folder from daos-controller 
+   sync_result_from_daos_controller
+}
+
+ensure_gcp_daos_repo_cloned() {
+   
 }
 
 generate_config() {
     # generate config.sh file
-    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${io500_ini}/${IO500_INI}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  ${CONFIG_FILE}
-    log "Config file generated: ${CONFIG_FILE}"
+
+    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${io500_ini}/${IO500_INI}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  gen_config.sh
+    scp gen_config.sh  $USER@$DAOS_CONTROLLER_VM_NAME:$CONFIG_REMOTE
+
+    log "Config file generated and placed on daos-controller VM: ${CONFIG_REMOTE}"
+
+    # sync new result folder from daos-controller 
+    sync_result_from_daos_controller
 }
 
-deploy_daos_cluster_n_clients() {
+deploy_daos_cluster_and_clients() {
     # deploy DAOS cluster and client
     source ${SCRIPT_DIR}/start.sh -i -c ${CONFIG_FILE}
     log "Successfully deployed DAOS cluster and client with config file: ${CONFIG_FILE}."
 }
 
 run_n_collect_io500() {
-      ITERATION_N_DIR="${RESULTS_DIR}/iteration$1"
+      ITERATION_N_DIR="${RESULTS_SESSION_DIR}/iteration$1"
       mkdir $ITERATION_N_DIR
 
       # run io500
@@ -220,13 +265,17 @@ main() {
 
     check_connection_to_daos_controller
 
-#    sync_to_daos_controller
+    setup_result_folder
 
-#    setup_working_folders
+    ensure_gcp_daos_repo_cloned
+    sync_to_daos_controller
 
-#   generate_config
+    generate_config
 
-#    deploy_daos_cluster_n_clients
+    assign_io500_ini
+    sync_to_daos_controller
+
+    deploy_daos_cluster_and_clients
 
 
     SSH_CONFIG_FILE="${SCRIPT_DIR}/tmp/ssh_config"
@@ -237,12 +286,13 @@ main() {
     do
       log "Iteration $n"
 
-#      run_n_collect_io500 $n
+      run_and_collect_io500 $n
+      sync_result_from_daos_controller
 
     done
 
     # cleanup DAOS cluster and client
-#   source ${SCRIPT_dir}/stop.sh
+   source ${SCRIPT_dir}/stop.sh
 }
 
 main "$@"
