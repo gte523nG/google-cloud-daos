@@ -9,22 +9,13 @@ DAOS_PROJECT_NAME="cloud-daos-perf-testing"
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
-GOOGLE_CLOUD_DAOS_ROOT_PATH="$( builtin cd $SCRIPT_DIR/../../..; pwd )"
-
 PERF_SESSION_ID="$USER$(date +'%Y%m%d-%H%M')"
-
 
 CONFIG_FILE="${RESULTS_SESSION_DIR}/config.sh"
 CONFIG_TEMPLATE_FILE="${SCRIPT_DIR}/remote_run.config.template"
 
 SSH_USER="daos-user"
 RUN_SCRIPT="run_io500-isc22.sh"
-
-
-RESULTS_DIR="$( builtin cd $GOOGLE_CLOUD_DAOS_ROOT_PATH/../daosresults; pwd )"
-RESULTS_SESSION_DIR="${RESULTS_DIR}/${PERF_SESSION_ID}"
-
-
 
 # default parameter values
 N_TIMES=1
@@ -261,17 +252,22 @@ deploy_daos_cluster_and_clients() {
 }
 
 run_n_collect_io500() {
-      ITERATION_N_DIR="${RESULTS_SESSION_DIR}/iteration$1"
-      mkdir $ITERATION_N_DIR
+
+      ITERATION_N_DIR="${RESULT_REMOTE_DIR}/iteration$1"
+
+      execute_on_daosctrl "mkdir $ITERATION_N_DIR"
 
       # run io500
-      ssh -F "${SSH_CONFIG_FILE}" "${FIRST_CLIENT_IP}" "~/${RUN_SCRIPT}"
+      execute_on_daosctrl "ssh -F ${SSH_CONFIG_FILE} ${FIRST_CLIENT_IP} '~/${RUN_SCRIPT}'"
 
       # collect result
-      scp -r -F "${SSH_CONFIG_FILE}" "${FIRST_CLIENT_IP}:~/io500-isc22/results/*" "${ITERATION_N_DIR}/"
+      execute_on_daosctrl "scp -r -F ${SSH_CONFIG_FILE} ${FIRST_CLIENT_IP}:~/io500-isc22/results/*  ${ITERATION_N_DIR}/"
+
+      # as soon as collecting result from the first daos client, download it to local result folder
+      sync_result_from_daos_controller
 
       # reset the results folder in the first DAOS client
-      ssh -F "${SSH_CONFIG_FILE}" "${FIRST_CLIENT_IP}" "rm -rf ~/io500-isc22/results/"
+      execute_on_daosctrl "ssh -F ${SSH_CONFIG_FILE} ${FIRST_CLIENT_IP} 'rm -rf ~/io500-isc22/results/'"
 }
 
 
@@ -288,26 +284,25 @@ main() {
     generate_config
 
     assign_io500_ini
-    sync_to_daos_controller
 
-    deploy_daos_cluster_and_clients
+#    deploy_daos_cluster_and_clients
 
 
-    SSH_CONFIG_FILE="${SCRIPT_DIR}/tmp/ssh_config"
-    FIRST_CLIENT_IP=$(cat ${SSH_CONFIG_FILE} | awk '{print $2}' | grep 10)
+#    SSH_CONFIG_FILE="${SCRIPT_DIR}/tmp/ssh_config"
+#    FIRST_CLIENT_IP=$(cat ${SSH_CONFIG_FILE} | awk '{print $2}' | grep 10)
 
     # repeat io500 and result collection for specified number of times
     for (( n=0; n<${N_TIMES};n++))
     do
       log "Iteration $n"
 
-      run_and_collect_io500 $n
-      sync_result_from_daos_controller
+#      run_and_collect_io500 $n
+#      sync_result_from_daos_controller
 
     done
 
     # cleanup DAOS cluster and client
-   source ${SCRIPT_dir}/stop.sh
+#   source ${SCRIPT_dir}/stop.sh
 }
 
 main "$@"
