@@ -40,7 +40,6 @@ GCP_DAOS_REPO_LOCAL_BASE="${SCRIPT_DIR}/gcp-daos"
 RESULT_REMOTE_BASE="~/daos-results"
 RESULT_REMOTE_DIR="${RESULT_REMOTE_BASE}/${PERF_SESSION_ID}"
 CONFIG_REMOTE="${RESULT_REMOTE_DIR}/config.sh"
-
 GCP_DAOS_REPO_REMOTE_BASE="~/gcp-daos-sync"
 
 
@@ -151,7 +150,6 @@ opts() {
           ERROR_MSGS+=("ERROR: Missing IO500_INI value for -i or --ini")
           break
         fi
-        export IO500_INI
         shift 2
       ;;
       --help|-h)
@@ -223,19 +221,37 @@ setup_result_folder() {
 }
 
 ensure_gcp_daos_repo_cloned() {
-   
+   # check GCP_DAOS_REPO_LOCAL_BASE folder exists
+   if [ ! -d "$GCP_DAOS_REPO_LOCAL_BASE" ]; then
+      log "Cloning gcp daos repo to ${GCP_DAOS_REPO_LOCAL_BASE}"
+      git clone -b autoIo500 https://github.com/gte523nG/google-cloud-daos.git "$GCP_DAOS_REPO_LOCAL_BASE"
+   fi
+
+   log "${GCP_DAOS_REPO_LOCAL_BASE} folder exists"
+
+   # sync gcp daos repo to daos-controller vm
+   sync_to_daos_controller
 }
 
 generate_config() {
     # generate config.sh file
 
-    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${io500_ini}/${IO500_INI}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  gen_config.sh
+    sed -e "s/\${perf_session_id}/${PERF_SESSION_ID}/" -e "s/\${daos_cont_props}/${DAOS_CONT_PROPS}/" -e "s/\${duration_in_seconds}/${DURATION_IN_SECONDS}/" ${CONFIG_TEMPLATE_FILE} >  gen_config.sh
     scp gen_config.sh  $USER@$DAOS_CONTROLLER_VM_NAME:$CONFIG_REMOTE
 
     log "Config file generated and placed on daos-controller VM: ${CONFIG_REMOTE}"
 
     # sync new result folder from daos-controller 
     sync_result_from_daos_controller
+}
+
+assign_io500_ini() {
+
+    # TODO, fix run_io500-isc22.sh which currently hard-codes io500-isc22.config-template.daos-rf0.ini.
+    # overwrite io500-isc22.config-template.daos-rf0.ini file in daos clone and push to daos-controller
+    cp -f $IO500_INI  $GCP_DAOS_REPO_LOCAL_BASE/terraform/examples/io500/io500-isc22.config-template.daos-rf0.ini
+
+    sync_to_daos_controller
 }
 
 deploy_daos_cluster_and_clients() {
@@ -268,7 +284,6 @@ main() {
     setup_result_folder
 
     ensure_gcp_daos_repo_cloned
-    sync_to_daos_controller
 
     generate_config
 

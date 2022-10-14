@@ -184,7 +184,7 @@ io500_prepare() {
 
   # cp -f "${IO500_DIR}/config-full-sc21.ini" .
   # envsubst < config-full-sc21.ini > temp.ini
-  envsubst < ${IO500_INI} > temp.ini
+  envsubst < io500-isc22.config-template.daos-rf0.ini > temp.ini
   sed -i "s|^resultdir.*|resultdir = ${IO500_RESULTS_DFUSE_DIR}|g" temp.ini
   sed -i "s/^stonewall-time.*/stonewall-time = ${IO500_STONEWALL_TIME}/g" temp.ini
   sed -i "s/^transferSize.*/transferSize = 4m/g" temp.ini
